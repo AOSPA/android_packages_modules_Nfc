@@ -7,7 +7,7 @@
         errorLine1="        mNfcOemExtension = new NfcOemExtension(mContext, this);"
         errorLine2="                           ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
         <location
-            file="frameworks/base/nfc/java/android/nfc/NfcAdapter.java"
+            file="packages/modules/Nfc/framework/java/android/nfc/NfcAdapter.java"
             line="909"
             column="28"/>
     </issue>
@@ -18,7 +18,7 @@
         errorLine1="                &amp;&amp; ((pollTechnology &amp; FLAG_SET_DEFAULT_TECH) == FLAG_SET_DEFAULT_TECH"
         errorLine2="                                      ~~~~~~~~~~~~~~~~~~~~~">
         <location
-            file="frameworks/base/nfc/java/android/nfc/NfcAdapter.java"
+            file="packages/modules/Nfc/framework/java/android/nfc/NfcAdapter.java"
             line="1917"
             column="39"/>
     </issue>
@@ -29,7 +29,7 @@
         errorLine1="                &amp;&amp; ((pollTechnology &amp; FLAG_SET_DEFAULT_TECH) == FLAG_SET_DEFAULT_TECH"
         errorLine2="                                                                ~~~~~~~~~~~~~~~~~~~~~">
         <location
-            file="frameworks/base/nfc/java/android/nfc/NfcAdapter.java"
+            file="packages/modules/Nfc/framework/java/android/nfc/NfcAdapter.java"
             line="1917"
             column="65"/>
     </issue>
@@ -40,7 +40,7 @@
         errorLine1="                || (listenTechnology &amp; FLAG_SET_DEFAULT_TECH) == FLAG_SET_DEFAULT_TECH)) {"
         errorLine2="                                       ~~~~~~~~~~~~~~~~~~~~~">
         <location
-            file="frameworks/base/nfc/java/android/nfc/NfcAdapter.java"
+            file="packages/modules/Nfc/framework/java/android/nfc/NfcAdapter.java"
             line="1918"
             column="40"/>
     </issue>
@@ -51,7 +51,7 @@
         errorLine1="                || (listenTechnology &amp; FLAG_SET_DEFAULT_TECH) == FLAG_SET_DEFAULT_TECH)) {"
         errorLine2="                                                                 ~~~~~~~~~~~~~~~~~~~~~">
         <location
-            file="frameworks/base/nfc/java/android/nfc/NfcAdapter.java"
+            file="packages/modules/Nfc/framework/java/android/nfc/NfcAdapter.java"
             line="1918"
             column="66"/>
     </issue>
@@ -62,7 +62,7 @@
         errorLine1="                    executor.execute(() -> callback.onVendorNciResponse(gid, oid, payload));"
         errorLine2="                                           ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
         <location
-            file="frameworks/base/nfc/java/android/nfc/NfcVendorNciCallbackListener.java"
+            file="packages/modules/Nfc/framework/java/android/nfc/NfcVendorNciCallbackListener.java"
             line="88"
             column="44"/>
     </issue>
@@ -73,7 +73,7 @@
         errorLine1="                    executor.execute(() -> callback.onVendorNciNotification(gid, oid, payload));"
         errorLine2="                                           ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
         <location
-            file="frameworks/base/nfc/java/android/nfc/NfcVendorNciCallbackListener.java"
+            file="packages/modules/Nfc/framework/java/android/nfc/NfcVendorNciCallbackListener.java"
             line="106"
             column="44"/>
     </issue>
