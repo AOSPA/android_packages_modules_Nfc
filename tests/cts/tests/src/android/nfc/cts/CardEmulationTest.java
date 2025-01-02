@@ -669,7 +669,8 @@ public class CardEmulationTest {
     })
     @ApiTest(
             apis = {
-                "android.nfc.cardemulation.CardEmulation.NfcEventCallback#onObserveModeStateChanged"
+                "android.nfc.cardemulation.CardEmulation.NfcEventCallback#onObserveModeStateChanged",
+                "android.nfc.cardemulation.CardEmulation.NfcEventCallback#onPreferredServiceChanged"
             })
     public void testEventListener() throws InterruptedException {
         NfcAdapter adapter = NfcAdapter.getDefaultAdapter(mContext);
@@ -743,7 +744,8 @@ public class CardEmulationTest {
     })
     @ApiTest(
             apis = {
-                "android.nfc.cardemulation.CardEmulation.NfcEventCallback#onObserveModeStateChanged"
+                "android.nfc.cardemulation.CardEmulation.NfcEventCallback#onObserveModeStateChanged",
+                "android.nfc.cardemulation.CardEmulation.NfcEventCallback#onPreferredServiceChanged"
             })
     public void testEventListener_WalletHolderToForegroundAndBack() throws InterruptedException {
         NfcAdapter adapter = NfcAdapter.getDefaultAdapter(mContext);
