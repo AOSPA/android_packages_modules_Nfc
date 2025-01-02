@@ -880,6 +880,10 @@ public class CardEmulationTest {
 
     @Test
     @RequiresFlagsEnabled({android.nfc.Flags.FLAG_NFC_EVENT_LISTENER})
+    @ApiTest(
+        apis = {
+            "android.nfc.cardemulation.CardEmulation.NfcEventCallback#onNfcStateChanged"
+        })
     public void testEventListener_stateChange() throws InterruptedException {
         NfcAdapter adapter = NfcAdapter.getDefaultAdapter(mContext);
         adapter.notifyHceDeactivated();
