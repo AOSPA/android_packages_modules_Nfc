@@ -4129,7 +4129,17 @@ public class NfcService implements DeviceHostListener, ForegroundUtils.Callback 
             if (mDeviceHost.isNdefOperationOngoing()) {
                 return T4tNdefNfcee.CLEAR_DATA_FAILED_DEVICE_BUSY;
             }
+            boolean isEnabled = (isNfcEnabled()
+                    || (((mIsAlwaysOnSupported && mAlwaysOnState == NfcAdapter.STATE_ON))
+                    && (mAlwaysOnMode == NfcOemExtension.ENABLE_EE)));
+            if (!isEnabled) {
+                mDeviceHost.setPartialInitMode(NfcOemExtension.ENABLE_EE);
+                mDeviceHost.initialize();
+            }
             boolean status  = mDeviceHost.doClearNdefData();
+            if (!isEnabled) {
+                mDeviceHost.deinitialize();
+            }
             Log.i(TAG, "doClearNdefT4tData : " + status);
             return status
                     ? T4tNdefNfcee.CLEAR_DATA_SUCCESS
