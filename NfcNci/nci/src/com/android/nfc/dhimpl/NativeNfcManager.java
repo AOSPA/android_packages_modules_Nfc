@@ -113,6 +113,10 @@ public class NativeNfcManager implements DeviceHost {
         return ret;
     }
 
+    boolean usePerTechObserveModeCommand() {
+        return com.android.nfc.flags.Flags.useNewObserveModeCmd();
+    }
+
     boolean isObserveModeSupportedWithoutRfDeactivation() {
         if (!com.android.nfc.flags.Flags.observeModeWithoutRf()) {
             return false;
@@ -257,6 +261,11 @@ public class NativeNfcManager implements DeviceHost {
     @Override
     public int getNdefNfceeRouteId() {
         return mT4tNfceeMgr.getNdefNfceeRouteId();
+    }
+
+    @Override
+    public boolean isNdefNfceefeatureEnabled() {
+        return mT4tNfceeMgr.isNdefNfceefeatureEnabled();
     }
 
     @Override
@@ -415,6 +424,13 @@ public class NativeNfcManager implements DeviceHost {
     public void dump(PrintWriter pw, FileDescriptor fd) {
         pw.println("Native Proprietary Caps=" + mProprietaryCaps);
         doDump(fd);
+    }
+
+    private native void doRestartRfDiscovery();
+
+    @Override
+    public void restartRfDiscovery() {
+        doRestartRfDiscovery();
     }
 
     private native boolean doSetNfcSecure(boolean enable);
@@ -706,4 +722,8 @@ public class NativeNfcManager implements DeviceHost {
 
     @Override
     public native boolean isRemovalDetectionInPollModeSupported();
+
+    public void onRestartRfDiscovery() {
+        mListener.onRestartRfDiscovery();
+    }
 }

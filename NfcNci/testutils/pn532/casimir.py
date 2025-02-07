@@ -22,6 +22,7 @@ import http
 from urllib.parse import urlparse
 from http.client import HTTPSConnection
 from .nfcutils.reader import Reader, ReaderTag, CONFIGURATION_A_LONG
+from .nfcutils.data import s_to_us
 import ssl
 import json
 
@@ -97,7 +98,7 @@ class Casimir(Reader):
         self.log.debug("got sender_id: " + str(sender_id))
         return CasimirTag(self, sender_id)
 
-    def poll_b(self):
+    def poll_b(self, *, afi=0x00):
         """Attempts to detect target for NFC type B."""
         raise RuntimeError("not implemented")
 
@@ -107,12 +108,19 @@ class Casimir(Reader):
         *,
         configuration=CONFIGURATION_A_LONG,
     ):
-        """Emits broadcast frame"""
-        if configuration.power != 100:
-            self._send_command(
-                "SetPowerLevel", {"power_level": configuration.power / 10}
-            )
-        return self.transceive(data)
+        """Send a polling frame or polling loop annotation"""
+        data = {
+            "data": data.hex() if isinstance(data, (bytes, bytearray)) else data,
+            "configuration": {
+                "type": configuration.type,
+                "crc": configuration.crc,
+                "bits": configuration.bits,
+                "bitrate": configuration.bitrate,
+                "timeout": s_to_us(configuration.timeout, method="ceil"),
+                "power": configuration.power
+            },
+        }
+        self._send_command('SendBroadcast', data)
 
     def transceive(self, apdu):
         ret = self.transceive_multiple(None, [apdu])

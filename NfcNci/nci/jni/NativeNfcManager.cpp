@@ -114,6 +114,7 @@ jmethodID gCachedNfcManagerNotifyEeAidSelected;
 jmethodID gCachedNfcManagerNotifyEeProtocolSelected;
 jmethodID gCachedNfcManagerNotifyEeTechSelected;
 jmethodID gCachedNfcManagerNotifyEeListenActivated;
+jmethodID gCachedNfcManagerOnRestartRfDiscovery;
 jmethodID gCachedNfcManagerNotifyEndpointRemoved;
 
 const char* gNativeNfcTagClassName = "com/android/nfc/dhimpl/NativeNfcTag";
@@ -187,6 +188,7 @@ static jboolean nfcManager_doSetPowerSavingMode(JNIEnv* e, jobject o,
 static void sendRawVsCmdCallback(uint8_t event, uint16_t param_len,
                                  uint8_t* p_param);
 static jbyteArray nfcManager_getProprietaryCaps(JNIEnv* e, jobject o);
+static void nfcManager_restartRfDiscovery(JNIEnv* e, jobject o);
 tNFA_STATUS gVSCmdStatus = NFA_STATUS_OK;
 uint16_t gCurrentConfigLen;
 uint8_t gConfig[256];
@@ -794,6 +796,9 @@ static jboolean nfcManager_initNativeStruc(JNIEnv* e, jobject o) {
   gCachedNfcManagerNotifyEndpointRemoved =
       e->GetMethodID(cls.get(), "notifyEndpointRemoved", "(I)V");
 
+  gCachedNfcManagerOnRestartRfDiscovery =
+      e->GetMethodID(cls.get(), "onRestartRfDiscovery", "()V");
+
   if (nfc_jni_cache_object(e, gNativeNfcTagClassName, &(nat->cached_NfcTag)) ==
       -1) {
     LOG(ERROR) << StringPrintf("%s: fail cache NativeNfcTag", __func__);
@@ -1152,6 +1157,7 @@ void static nfaVSCallback(uint8_t event, uint16_t param_len, uint8_t* p_param) {
                                     gObserveModeEnabled ? "TRUE" : "FALSE");
         }
           FALLTHROUGH_INTENDED;
+        case NCI_ANDROID_SET_PASSIVE_OBSERVER_TECH:
         case NCI_ANDROID_PASSIVE_OBSERVE: {
           gVSCmdStatus = p_param[4];
           LOG(INFO) << StringPrintf("Observe mode RSP: status: %x",
@@ -1193,6 +1199,21 @@ void static nfaVSCallback(uint8_t event, uint16_t param_len, uint8_t* p_param) {
                             android::gCachedNfcManagerNotifyPollingLoopFrame,
                             (jint)param_len, dataJavaArray.get());
 
+        } break;
+        case NCI_ANDROID_RESTART_RF_DISCOVERY_REQUEST_NTF: {
+                struct nfc_jni_native_data* nat = getNative(NULL, NULL);
+                if (!nat) {
+                  LOG(ERROR) << StringPrintf("cached nat is null");
+                  return;
+                }
+                JNIEnv* e = NULL;
+                ScopedAttach attach(nat->vm, &e);
+                if (e == NULL) {
+                  LOG(ERROR) << StringPrintf("jni env is null");
+                  return;
+                }
+                e->CallVoidMethod(nat->manager,
+                                  android::gCachedNfcManagerOnRestartRfDiscovery);
         } break;
         default:
           LOG(DEBUG) << StringPrintf("Unknown Android sub opcode %x",
@@ -1299,6 +1320,13 @@ bool isObserveModeSupportedWithoutRfDeactivation(JNIEnv* e, jobject o) {
   return e->CallBooleanMethod(o, isSupported);
 }
 
+bool usePerTechObserveModeCommand(JNIEnv* e, jobject o) {
+  ScopedLocalRef<jclass> cls(e, e->GetObjectClass(o));
+  jmethodID isSupported = e->GetMethodID(
+      cls.get(), "usePerTechObserveModeCommand", "()Z");
+  return e->CallBooleanMethod(o, isSupported);
+}
+
 static jboolean nfcManager_setObserveMode(JNIEnv* e, jobject o,
                                           jboolean enable) {
   if (isObserveModeSupported(e, o) == JNI_FALSE) {
@@ -1321,11 +1349,20 @@ static jboolean nfcManager_setObserveMode(JNIEnv* e, jobject o,
     startRfDiscovery(false);
     reenbleDiscovery = true;
   }
+  bool useOldCommand  = needToTurnOffRadio || !usePerTechObserveModeCommand(e, o);
   uint8_t cmd[] = {
-      NCI_ANDROID_PASSIVE_OBSERVE,
-      static_cast<uint8_t>(enable != JNI_FALSE
-                               ? NCI_ANDROID_PASSIVE_OBSERVE_PARAM_ENABLE
-                               : NCI_ANDROID_PASSIVE_OBSERVE_PARAM_DISABLE)};
+      static_cast<uint8_t>(
+        useOldCommand
+                         ? NCI_ANDROID_PASSIVE_OBSERVE
+                         : NCI_ANDROID_SET_PASSIVE_OBSERVER_TECH),
+      static_cast<uint8_t>(
+          enable != JNI_FALSE
+              ? (useOldCommand
+                     ? NCI_ANDROID_PASSIVE_OBSERVE_PARAM_ENABLE
+                     : NCI_ANDROID_PASSIVE_OBSERVE_PARAM_ENABLE_A |
+                           NCI_ANDROID_PASSIVE_OBSERVE_PARAM_ENABLE_B |
+                           NCI_ANDROID_PASSIVE_OBSERVE_PARAM_ENABLE_V)
+              : NCI_ANDROID_PASSIVE_OBSERVE_PARAM_DISABLE)};
   {
     SyncEventGuard guard(gNfaVsCommand);
     tNFA_STATUS status = NFA_SendVsCommand(NCI_MSG_PROP_ANDROID, sizeof(cmd),
@@ -2668,6 +2705,7 @@ static JNINativeMethod gMethods[] = {
     {"doDetectEpRemoval", "(I)Z", (void*)nfcManager_doDetectEpRemoval},
     {"isRemovalDetectionInPollModeSupported", "()Z",
      (void*)nfcManager_isRemovalDetectionSupported},
+    {"doRestartRfDiscovery", "()V", (void*)nfcManager_restartRfDiscovery},
 };
 
 /*******************************************************************************
@@ -2906,6 +2944,22 @@ static jbyteArray nfcManager_getProprietaryCaps(JNIEnv* e, jobject o) {
   CHECK(rtJavaArray);
   e->SetByteArrayRegion(rtJavaArray, 0, gCaps.size(), (jbyte*)gCaps.data());
   return rtJavaArray;
+}
+
+/*******************************************************************************
+**
+** Function:        nfcManager_restartRfDiscovery
+** Description:     Restarts RF discovery
+**
+**                  e: JVM environment.
+**                  o: Java object.
+**
+*******************************************************************************/
+static void nfcManager_restartRfDiscovery(JNIEnv*, jobject) {
+  if (sRfEnabled) {
+    android::startRfDiscovery(false);
+  }
+  android::startRfDiscovery(true);
 }
 
 } /* namespace android */
