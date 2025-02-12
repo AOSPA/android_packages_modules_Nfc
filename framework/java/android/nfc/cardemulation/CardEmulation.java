@@ -1481,7 +1481,10 @@ public final class CardEmulation {
             mDeathRecipient = new IBinder.DeathRecipient() {
                 @Override
                 public void binderDied() {
-                    sService = null;
+                    synchronized (mNfcEventCallbacks) {
+                        mDeathRecipient = null;
+                        sService = null;
+                    }
                     Handler handler = new Handler(Looper.getMainLooper());
                     handler.postDelayed(new Runnable() {
                         public void run() {
