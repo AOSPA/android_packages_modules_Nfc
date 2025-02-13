@@ -1161,6 +1161,7 @@ class CtsNfcHceMultiDeviceTestCases(base_test.BaseTestClass):
             start_reader_fun=self.reader.nfc_reader.startSinglePaymentReaderActivity if not
             self.pn532 else None)
 
+    @CddTest(requirements = ["7.4.4/C-1-13"])
     def test_polling_frame_timestamp(self):
         """Tests that PollingFrame object timestamp values are reported correctly
         and do not deviate from host measurements
@@ -1290,6 +1291,7 @@ class CtsNfcHceMultiDeviceTestCases(base_test.BaseTestClass):
         asserts.assert_less(num_exceeding_threshold,
                                   _POLLING_FRAME_TIMESTAMP_EXCEED_COUNT_TOLERANCE_)
 
+    @CddTest(requirements = ["7.4.4/C-1-13"])
     def test_polling_frame_vendor_specific_gain(self):
         """Tests that PollingFrame object vendorSpecificGain value
         changes when overall NFC reader output power changes
@@ -1377,6 +1379,7 @@ class CtsNfcHceMultiDeviceTestCases(base_test.BaseTestClass):
                     }
                 )
 
+    @CddTest(requirements = ["7.4.4/C-1-13"])
     def test_polling_frame_type(self):
         """Tests that PollingFrame object 'type' value is set correctly
 
@@ -1429,6 +1432,7 @@ class CtsNfcHceMultiDeviceTestCases(base_test.BaseTestClass):
 
         asserts.assert_equal(len(issues), 0, _FAILED_FRAME_TYPE_INVALID, issues)
 
+    @CddTest(requirements = ["7.4.4/C-1-13"])
     def test_polling_frame_data(self):
         """Tests that PollingFrame object 'data' value is set correctly
 
