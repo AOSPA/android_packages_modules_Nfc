@@ -60,7 +60,7 @@ custom_apex {
         },
     },
 
-    required: [
+    prebuilts: [
         // Provide a default libnfc-nci.conf in /system/etc for devices that
         // does not ship one in /product
         "libnfc-nci.conf-default",
