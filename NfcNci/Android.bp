@@ -39,6 +39,7 @@ java_defaults {
         "android.se.omapi-V1-java",
         "androidx.annotation_annotation",
         "androidx.appcompat_appcompat",
+        "app-compat-annotations",
         "bluetooth-protos-nfc-enums-java-gen",
         "com.google.android.material_material",
         "modules-utils-fastxmlserializer",
@@ -46,10 +47,12 @@ java_defaults {
         "PlatformProperties",
         "nfc-event-log-proto",
         "com.android.nfc.flags-aconfig-java",
+        "com.android.nfc.module.flags-aconfig-java",
         "com.android.permission.flags-aconfig-java-export",
     ],
     flags_packages: [
         "com.android.nfc.flags-aconfig",
+        "com.android.nfc.module.flags-aconfig",
     ],
     privileged: true,
     optimize: {
