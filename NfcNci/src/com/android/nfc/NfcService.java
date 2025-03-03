@@ -2263,14 +2263,6 @@ public class NfcService implements DeviceHostListener, ForegroundUtils.Callback 
                 Log.e(TAG, "isObserveModeSupported: NFC must be enabled but is: " + mState);
                 return false;
             }
-            long token = Binder.clearCallingIdentity();
-            try {
-                if (!android.nfc.Flags.nfcObserveMode()) {
-                    return false;
-                }
-            } finally {
-                Binder.restoreCallingIdentity(token);
-            }
             return mDeviceHost.isObserveModeSupported();
         }
 

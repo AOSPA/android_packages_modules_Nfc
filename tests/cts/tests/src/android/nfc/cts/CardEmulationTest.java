@@ -1007,7 +1007,6 @@ public class CardEmulationTest {
     }
 
     @Test
-    @RequiresFlagsEnabled(Flags.FLAG_NFC_OBSERVE_MODE)
     public void testSetShouldDefaultToObserveModeShouldDefaultToObserveModeDynamic()
             throws InterruptedException {
         NfcAdapter adapter = NfcAdapter.getDefaultAdapter(mContext);
@@ -1048,7 +1047,6 @@ public class CardEmulationTest {
     }
 
     @Test
-    @RequiresFlagsEnabled(Flags.FLAG_NFC_OBSERVE_MODE)
     public void testSetShouldDefaultToObserveModeFalseShouldNotDefaultToObserveMode()
             throws InterruptedException {
         NfcAdapter adapter = NfcAdapter.getDefaultAdapter(mContext);
@@ -1070,7 +1068,6 @@ public class CardEmulationTest {
     }
 
     @Test
-    @RequiresFlagsEnabled(Flags.FLAG_NFC_OBSERVE_MODE)
     public void testSetShouldDefaultToObserveModeShouldDefaultToObserveMode()
             throws InterruptedException {
         NfcAdapter adapter = NfcAdapter.getDefaultAdapter(mContext);
@@ -1096,7 +1093,6 @@ public class CardEmulationTest {
     }
 
     @Test
-    @RequiresFlagsEnabled(Flags.FLAG_NFC_OBSERVE_MODE)
     public void testSetShouldDefaultToObserveModeFalseShouldNotDefaultToObserveModeOffHost()
             throws InterruptedException {
         NfcAdapter adapter = NfcAdapter.getDefaultAdapter(mContext);
@@ -1118,7 +1114,6 @@ public class CardEmulationTest {
     }
 
     @Test
-    @RequiresFlagsEnabled(Flags.FLAG_NFC_OBSERVE_MODE)
     public void testSetShouldDefaultToObserveModeShouldDefaultToObserveModeOffHost()
             throws InterruptedException {
         NfcAdapter adapter = NfcAdapter.getDefaultAdapter(mContext);
