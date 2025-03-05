@@ -739,8 +739,7 @@ public class NfcService implements DeviceHostListener, ForegroundUtils.Callback 
 
     @Override
     public void onPollingLoopDetected(List<PollingFrame> frames) {
-        if (mCardEmulationManager != null
-                && android.nfc.Flags.nfcReadPollingLoop()) {
+        if (mCardEmulationManager != null) {
             if (Flags.postCallbacks()) {
                 mHandler.post(() -> {
                     if (mCardEmulationManager != null) {
@@ -2262,14 +2261,6 @@ public class NfcService implements DeviceHostListener, ForegroundUtils.Callback 
             if (!isNfcEnabled()) {
                 Log.e(TAG, "isObserveModeSupported: NFC must be enabled but is: " + mState);
                 return false;
-            }
-            long token = Binder.clearCallingIdentity();
-            try {
-                if (!android.nfc.Flags.nfcObserveMode()) {
-                    return false;
-                }
-            } finally {
-                Binder.restoreCallingIdentity(token);
             }
             return mDeviceHost.isObserveModeSupported();
         }
