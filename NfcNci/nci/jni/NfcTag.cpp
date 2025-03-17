@@ -1645,6 +1645,18 @@ void NfcTag::setMultiProtocolTagSupport(bool isMultiProtocolSupported) {
 
 /*******************************************************************************
 **
+** Function:        getMultiProtocolTagSupport
+**
+** Description:     get mIsMultiProtocolTag
+**
+** Returns:         mIsMultiProtocolTag
+**
+*******************************************************************************/
+
+bool NfcTag::getMultiProtocolTagSupport() { return mIsMultiProtocolTag; }
+
+/*******************************************************************************
+**
 ** Function:        setNumDiscNtf
 **
 ** Description:     Update number of Discovery NTF received
@@ -1653,8 +1665,10 @@ void NfcTag::setMultiProtocolTagSupport(bool isMultiProtocolSupported) {
 **
 *******************************************************************************/
 void NfcTag::setNumDiscNtf(int numDiscNtfValue) {
+  static const char fn[] = "NfcTag::setNumDiscNtf";
   if (numDiscNtfValue < MAX_NUM_TECHNOLOGY) {
     mNumDiscNtf = numDiscNtfValue;
+    LOG(DEBUG) << StringPrintf("%s: mNumDiscNtf=%u", fn, mNumDiscNtf);
   }
 }
 
