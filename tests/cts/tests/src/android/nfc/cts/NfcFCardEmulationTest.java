@@ -3,6 +3,7 @@ package android.nfc.cts;
 import static org.junit.Assume.assumeTrue;
 
 import android.app.Activity;
+import android.app.ActivityManager;
 import android.content.ComponentName;
 import android.content.Context;
 import android.content.Intent;
@@ -81,12 +82,15 @@ public class NfcFCardEmulationTest {
 
     private Activity createAndResumeActivity() {
         CardEmulationTest.ensureUnlocked();
-        Intent intent
-            = new Intent(ApplicationProvider.getApplicationContext(),
-            NfcFCardEmulationActivity.class);
+        Context context = ApplicationProvider.getApplicationContext();
+        Intent intent = new Intent(context, NfcFCardEmulationActivity.class);
         intent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
         Activity activity = InstrumentationRegistry.getInstrumentation().startActivitySync(intent);
         InstrumentationRegistry.getInstrumentation().callActivityOnResume(activity);
+        ComponentName topComponentName = context.getSystemService(ActivityManager.class)
+                .getRunningTasks(1).get(0).topActivity;
+        Assert.assertEquals("Foreground activity not in the foreground",
+                NfcFCardEmulationActivity.class.getName(), topComponentName.getClassName());
         return activity;
     }
 
