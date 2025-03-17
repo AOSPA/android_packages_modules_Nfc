@@ -2991,71 +2991,75 @@ static jbyteArray nfcManager_getProprietaryCaps(JNIEnv* e, jobject o) {
 static jboolean nfcManager_setFirmwareExitFrameTable(JNIEnv* env, jobject o,
                                                      jobjectArray exit_frames,
                                                      jbyteArray timeout) {
-    if (sIsShuttingDown) return false;
-    LOG(ERROR) << "Setting firmware exit frame table";
-    std::vector<uint8_t> command;
-    command.push_back(NCI_ANDROID_SET_PASSIVE_OBSERVER_EXIT_FRAME);
+  if (sIsShuttingDown) return false;
+  LOG(ERROR) << "Setting firmware exit frame table";
+  std::vector<uint8_t> command;
+  command.push_back(NCI_ANDROID_SET_PASSIVE_OBSERVER_EXIT_FRAME);
 
-    uint8_t timeout_len = env->GetArrayLength(timeout);
-    auto* timeout_arr = (uint8_t *) env->GetByteArrayElements(timeout, nullptr);
+  uint8_t timeout_len = env->GetArrayLength(timeout);
+  auto* timeout_arr = (uint8_t*)env->GetByteArrayElements(timeout, nullptr);
 
-    for (int i = 0; i < timeout_len; ++i) {
-        command.push_back(timeout_arr[i]);
+  for (int i = 0; i < timeout_len; ++i) {
+    command.push_back(timeout_arr[i]);
+  }
+  env->ReleaseByteArrayElements(timeout, (jbyte*)timeout_arr, JNI_ABORT);
+
+  uint8_t num_exit_frames = env->GetArrayLength(exit_frames);
+  command.push_back(num_exit_frames);
+
+  if (num_exit_frames > 0) {
+    jobject exit_frame = env->GetObjectArrayElement(exit_frames, 0);
+    jclass clazz = env->GetObjectClass(exit_frame);
+    jmethodID is_prefix_allowed =
+        env->GetMethodID(clazz, "isPrefixMatchingAllowed", "()Z");
+    jmethodID get_data = env->GetMethodID(clazz, "getData", "()[B");
+    jmethodID get_data_mask = env->GetMethodID(clazz, "getDataMask", "()[B");
+    jmethodID get_tech = env->GetMethodID(clazz, "getNfcTech", "()I");
+    jmethodID get_power_state = env->GetMethodID(clazz, "getPowerState", "()I");
+
+    for (int i = 0; i < num_exit_frames; ++i) {
+      jobject frame = env->GetObjectArrayElement(exit_frames, i);
+
+      uint8_t qualifier_type = 0x00;
+      if (env->CallBooleanMethod(frame, is_prefix_allowed)) {
+        qualifier_type |= 0b00010000;
+      }
+      qualifier_type |= env->CallIntMethod(frame, get_tech);
+      command.push_back(qualifier_type);
+
+      uint8_t power_state = env->CallIntMethod(frame, get_power_state);
+
+      jbyteArray data = (jbyteArray)env->CallObjectMethod(frame, get_data);
+      uint8_t data_len = env->GetArrayLength(data);
+      auto* data_arr = (uint8_t*)env->GetByteArrayElements(data, nullptr);
+
+      jbyteArray data_mask =
+          (jbyteArray)env->CallObjectMethod(frame, get_data_mask);
+      uint8_t data_mask_len = env->GetArrayLength(data_mask);
+      auto* data_mask_arr =
+          (uint8_t*)env->GetByteArrayElements(data_mask, nullptr);
+
+      uint8_t value_len = 1 + data_len + data_mask_len;
+
+      command.push_back(value_len);
+      command.push_back(power_state);
+
+      for (int j = 0; j < data_len; ++j) {
+        command.push_back(data_arr[j]);
+      }
+      for (int j = 0; j < data_mask_len; ++j) {
+        command.push_back(data_mask_arr[j]);
+      }
+      env->ReleaseByteArrayElements(data, (jbyte*)data_arr, JNI_ABORT);
+      env->ReleaseByteArrayElements(data_mask, (jbyte*)data_mask_arr,
+                                    JNI_ABORT);
     }
-    env->ReleaseByteArrayElements(timeout, (jbyte *) timeout_arr, JNI_ABORT);
-
-    uint8_t num_exit_frames = env->GetArrayLength(exit_frames);
-    command.push_back(num_exit_frames);
-
-    if (num_exit_frames > 0) {
-        jobject exit_frame = env->GetObjectArrayElement(exit_frames, 0);
-        jclass clazz = env->GetObjectClass(exit_frame);
-        jmethodID is_prefix_allowed = env->GetMethodID(clazz, "isPrefixMatchingAllowed", "()Z");
-        jmethodID get_data = env->GetMethodID(clazz, "getData", "()[B");
-        jmethodID get_data_mask = env->GetMethodID(clazz, "getDataMask", "()[B");
-        jmethodID get_tech = env->GetMethodID(clazz, "getNfcTech", "()I");
-        jmethodID get_power_state = env->GetMethodID(clazz, "getPowerState", "()I");
-
-        for (int i = 0; i < num_exit_frames; ++i) {
-            jobject frame = env->GetObjectArrayElement(exit_frames, i);
-
-            uint8_t qualifier_type = 0x00;
-            if (env->CallBooleanMethod(frame, is_prefix_allowed)) {
-                qualifier_type |= 0b00010000;
-            }
-            qualifier_type |= env->CallIntMethod(frame, get_tech);
-            command.push_back(qualifier_type);
-
-            uint8_t power_state = env->CallIntMethod(frame, get_power_state);
-
-            jbyteArray data = (jbyteArray) env->CallObjectMethod(frame, get_data);
-            uint8_t data_len = env->GetArrayLength(data);
-            auto* data_arr = (uint8_t*) env->GetByteArrayElements(data, nullptr);
-
-            jbyteArray data_mask = (jbyteArray) env->CallObjectMethod(frame, get_data_mask);
-            uint8_t data_mask_len = env->GetArrayLength(data_mask);
-            auto* data_mask_arr = (uint8_t*) env->GetByteArrayElements(data_mask, nullptr);
-
-            uint8_t value_len = 1 + data_len + data_mask_len;
-
-            command.push_back(value_len);
-            command.push_back(power_state);
-
-            for (int j = 0; j < data_len; ++j) {
-                command.push_back(data_arr[j]);
-            }
-            for (int j = 0; j < data_mask_len; ++j) {
-                command.push_back(data_mask_arr[j]);
-            }
-            env->ReleaseByteArrayElements(data, (jbyte *) data_arr, JNI_ABORT);
-            env->ReleaseByteArrayElements(data_mask, (jbyte *) data_mask_arr, JNI_ABORT);
-        }
-    }
+  }
 
     bool reenableDiscovery = false;
     if (sRfEnabled) {
-        startRfDiscovery(false);
-        reenableDiscovery = true;
+      startRfDiscovery(false);
+      reenableDiscovery = true;
     }
 
     // TODO make helper to send single command and wait on response
