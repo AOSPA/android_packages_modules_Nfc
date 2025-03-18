@@ -400,14 +400,15 @@ class PN532(Reader):
             },
         )
         self.log.debug("Serial port: %s", path)
-        self.device = serial.Serial(path, 115200, timeout=0.5)
 
-        self.device.flush()
-        self._send_ack_frame()
-        self.device.flushInput()
         try:
+            self.device = serial.Serial(path, 115200, timeout=0.5)
+            self.device.flush()
+            self._send_ack_frame()
+            self.device.flushInput()
             return self.verify_firmware_version()
         except Exception as e:
+            self.log.warning('Failed to verify firmware version: %s', e)
             return False
 
     def poll_a(self):
