@@ -420,6 +420,9 @@ static void nfaConnectionCallback(uint8_t connEvent,
         LOG(ERROR) << StringPrintf(
             "%s: NFA_SELECT_RESULT_EVT error: status = %d", __func__,
             eventData->status);
+        if (NfcTag::getInstance().retrySelect() == NFA_STATUS_OK) {
+          break;
+        }
         NFA_Deactivate(FALSE);
       }
       break;
@@ -444,6 +447,7 @@ static void nfaConnectionCallback(uint8_t connEvent,
         /* T5T doesn't support multiproto detection logic */
         NfcTag::getInstance().setNumDiscNtf(0);
       }
+      NfcTag::getInstance().clearSelectRetryCount();
       if ((eventData->activated.activate_ntf.protocol !=
            NFA_PROTOCOL_NFC_DEP) &&
           (!isListenMode(eventData->activated))) {
