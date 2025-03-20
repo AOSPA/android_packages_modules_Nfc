@@ -68,6 +68,7 @@ import com.android.nfc.NfcInjector;
 import com.android.nfc.NfcPermissions;
 import com.android.nfc.NfcService;
 import com.android.nfc.R;
+import com.android.nfc.cardemulation.util.StatsdUtils;
 import com.android.nfc.cardemulation.util.TelephonyUtils;
 import com.android.nfc.flags.Flags;
 import com.android.nfc.proto.NfcEventProto;
@@ -155,6 +156,8 @@ public class CardEmulationManager implements RegisteredServicesCache.Callback,
     private final int mVendorApiLevel;
     private PreferredSubscriptionService mPreferredSubscriptionService = null;
     private TelephonyUtils mTelephonyUtils = null;
+    @Nullable
+    private final StatsdUtils mStatsdUtils;
 
     // TODO: Move this object instantiation and dependencies to NfcInjector.
     public CardEmulationManager(Context context, NfcInjector nfcInjector,
@@ -191,6 +194,7 @@ public class CardEmulationManager implements RegisteredServicesCache.Callback,
         mVendorApiLevel = SystemProperties.getInt(
                 "ro.vendor.api_level", Build.VERSION.DEVICE_INITIAL_SDK_INT);
         mPreferredSubscriptionService = new PreferredSubscriptionService(mContext, this);
+        mStatsdUtils = nfcInjector.getStatsdUtils();
         initialize();
     }
 
@@ -209,7 +213,8 @@ public class CardEmulationManager implements RegisteredServicesCache.Callback,
             RoutingOptionManager routingOptionManager,
             PowerManager powerManager,
             NfcEventLog nfcEventLog,
-            PreferredSubscriptionService preferredSubscriptionService) {
+            PreferredSubscriptionService preferredSubscriptionService,
+            StatsdUtils statsdUtils) {
         mContext = context;
         mCardEmulationInterface = new CardEmulationInterface();
         mNfcFCardEmulationInterface = new NfcFCardEmulationInterface();
@@ -231,6 +236,7 @@ public class CardEmulationManager implements RegisteredServicesCache.Callback,
         mVendorApiLevel = SystemProperties.getInt(
                 "ro.vendor.api_level", Build.VERSION.DEVICE_INITIAL_SDK_INT);
         mPreferredSubscriptionService = preferredSubscriptionService;
+        mStatsdUtils = statsdUtils;
         initialize();
     }
 
@@ -1732,6 +1738,10 @@ public class CardEmulationManager implements RegisteredServicesCache.Callback,
             callNfcEventCallbacks(listener -> listener.onObserveModeDisabledInFirmware(exitFrame));
         }
         mHostEmulationManager.onObserveModeDisabledInFirmware(exitFrame);
+
+        if (mStatsdUtils != null) {
+            mStatsdUtils.logAutoTransactReported(StatsdUtils.PROCESSOR_NFCC, exitFrame.getData());
+        }
     }
 
     @Override
