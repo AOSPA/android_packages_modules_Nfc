@@ -158,6 +158,7 @@ public class CardEmulationManager implements RegisteredServicesCache.Callback,
     private TelephonyUtils mTelephonyUtils = null;
     @Nullable
     private final StatsdUtils mStatsdUtils;
+    private final DeviceConfigFacade mDeviceConfigFacade;
 
     // TODO: Move this object instantiation and dependencies to NfcInjector.
     public CardEmulationManager(Context context, NfcInjector nfcInjector,
@@ -195,6 +196,7 @@ public class CardEmulationManager implements RegisteredServicesCache.Callback,
                 "ro.vendor.api_level", Build.VERSION.DEVICE_INITIAL_SDK_INT);
         mPreferredSubscriptionService = new PreferredSubscriptionService(mContext, this);
         mStatsdUtils = nfcInjector.getStatsdUtils();
+        mDeviceConfigFacade = deviceConfigFacade;
         initialize();
     }
 
@@ -214,7 +216,8 @@ public class CardEmulationManager implements RegisteredServicesCache.Callback,
             PowerManager powerManager,
             NfcEventLog nfcEventLog,
             PreferredSubscriptionService preferredSubscriptionService,
-            StatsdUtils statsdUtils) {
+            StatsdUtils statsdUtils,
+            DeviceConfigFacade deviceConfigFacade) {
         mContext = context;
         mCardEmulationInterface = new CardEmulationInterface();
         mNfcFCardEmulationInterface = new NfcFCardEmulationInterface();
@@ -237,6 +240,7 @@ public class CardEmulationManager implements RegisteredServicesCache.Callback,
                 "ro.vendor.api_level", Build.VERSION.DEVICE_INITIAL_SDK_INT);
         mPreferredSubscriptionService = preferredSubscriptionService;
         mStatsdUtils = statsdUtils;
+        mDeviceConfigFacade = deviceConfigFacade;
         initialize();
     }
 
@@ -293,7 +297,7 @@ public class CardEmulationManager implements RegisteredServicesCache.Callback,
                 Log.e(TAG, "onHostCardEmulationActivated: failed", e);
             }
         }
-        if (mContext.getResources().getBoolean(R.bool.indicate_user_activity_for_hce)
+        if (mDeviceConfigFacade.getIndicateUserActivityForHce()
                 && mPowerManager != null) {
             // Use USER_ACTIVITY_FLAG_INDIRECT to applying power hints without resets
             // the screen timeout
@@ -1158,7 +1162,7 @@ public class CardEmulationManager implements RegisteredServicesCache.Callback,
         @Override
         public int setServiceEnabledForCategoryOther(int userId,
                 ComponentName app, boolean status) throws RemoteException {
-            if (!mContext.getResources().getBoolean(R.bool.enable_service_for_category_other))
+            if (!mDeviceConfigFacade.getEnableServiceOther())
               return SET_SERVICE_ENABLED_STATUS_FAILURE_FEATURE_UNSUPPORTED;
             NfcPermissions.enforceUserPermissions(mContext);
 
