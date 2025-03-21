@@ -3571,6 +3571,11 @@ public class NfcService implements DeviceHostListener, ForegroundUtils.Callback 
 
         @Override
         public int commitRouting() throws RemoteException {
+            if (isNfcDisabledOrDisabling()) {
+                Log.d(TAG, "Skip commit routing when NFCC is off "
+                        + "or turning off");
+                return STATUS_UNKNOWN_ERROR;
+            }
             if (DBG) Log.i(TAG, "commitRouting");
             NfcPermissions.enforceAdminPermissions(mContext);
             return mDeviceHost.commitRouting();
@@ -4283,6 +4288,12 @@ public class NfcService implements DeviceHostListener, ForegroundUtils.Callback 
         }
     }
 
+    boolean isNfcDisabledOrDisabling() {
+        synchronized (this) {
+            return (mState == NfcAdapter.STATE_OFF || mState == NfcAdapter.STATE_TURNING_OFF);
+        }
+    }
+
     boolean isNfcEnabled() {
         synchronized (this) {
             return mState == NfcAdapter.STATE_ON;
@@ -4924,8 +4935,7 @@ public class NfcService implements DeviceHostListener, ForegroundUtils.Callback 
                 case MSG_COMMIT_ROUTING: {
                     Log.d(TAG, "handleMessage: MSG_COMMIT_ROUTING");
                     synchronized (NfcService.this) {
-                        if (mState == NfcAdapter.STATE_OFF
-                                || mState == NfcAdapter.STATE_TURNING_OFF) {
+                        if (isNfcDisabledOrDisabling()) {
                             Log.d(TAG, "handleMessage: Skip commit routing when NFCC is off "
                                     + "or turning off");
                             if (mCommitRoutingCountDownLatch != null) {
