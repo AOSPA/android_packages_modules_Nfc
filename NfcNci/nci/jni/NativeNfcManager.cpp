@@ -2018,7 +2018,8 @@ static jboolean doPartialDeinit() {
 *******************************************************************************/
 static jboolean nfcManager_doDeinitialize(JNIEnv*, jobject) {
   if (sIsShuttingDown) return false;
-  LOG(DEBUG) << StringPrintf("%s: enter", __func__);
+  LOG(DEBUG) << StringPrintf("%s: enter, sIsRecovering=%d", __func__,
+                             sIsRecovering);
   if (gPartialInitMode != ENABLE_MODE_DEFAULT) {
     return doPartialDeinit();
   }
@@ -2039,10 +2040,13 @@ static jboolean nfcManager_doDeinitialize(JNIEnv*, jobject) {
       NFA_DisableDtamode();
     }
 
-    tNFA_STATUS stat = NFA_Disable(TRUE /* graceful */);
+    tNFA_STATUS stat = NFA_Disable(!sIsRecovering);
     if (stat == NFA_STATUS_OK) {
       LOG(DEBUG) << StringPrintf("%s: wait for completion", __func__);
-      sNfaDisableEvent.wait();  // wait for NFA command to finish
+      if (!sNfaDisableEvent.wait(5000)) {
+        LOG(ERROR) << StringPrintf(
+            "%s: NFA_Disable() timeout, keep disabling anyway", __func__);
+      }
     } else {
       LOG(ERROR) << StringPrintf("%s: fail disable; error=0x%X", __func__,
                                  stat);
@@ -2058,6 +2062,7 @@ static jboolean nfcManager_doDeinitialize(JNIEnv*, jobject) {
   sIsDisabling = false;
   sReaderModeEnabled = false;
   gActivated = false;
+  sRfEnabled = false;
   sLfT3tMax = 0;
 
   {
