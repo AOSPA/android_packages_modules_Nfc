@@ -126,12 +126,8 @@ void nfc_process_timer_evt(void) {
         nfc_mode_set_ntf_timeout();
         break;
       default:
-        LOG(VERBOSE) << StringPrintf(
-            "nfc_process_timer_evt: timer:0x%p event (0x%04x)", p_tle,
-            p_tle->event);
-        LOG(VERBOSE) << StringPrintf(
-            "nfc_process_timer_evt: unhandled timer event (0x%04x)",
-            p_tle->event);
+        LOG(VERBOSE) << StringPrintf("%s:: unhandled timer event (0x%04x)",
+                                     __func__, p_tle->event);
     }
   }
 
@@ -151,11 +147,14 @@ void nfc_process_timer_evt(void) {
 **
 *******************************************************************************/
 void nfc_stop_timer(TIMER_LIST_ENT* p_tle) {
-  GKI_remove_from_timer_list(&nfc_cb.timer_queue, p_tle);
+  if (!gki_utils) {
+    gki_utils = new GkiUtils();
+  }
+  gki_utils->remove_from_timer_list(&nfc_cb.timer_queue, p_tle);
 
   /* if timer list is empty stop periodic GKI timer */
-  if (GKI_timer_list_empty(&nfc_cb.timer_queue)) {
-    GKI_stop_timer(NFC_TIMER_ID);
+  if (gki_utils->timer_list_empty(&nfc_cb.timer_queue)) {
+    gki_utils->stop_timer(NFC_TIMER_ID);
   }
 }
 
@@ -274,9 +273,8 @@ void nfc_process_quick_timer_evt(void) {
         break;
 #endif
       default:
-        LOG(VERBOSE) << StringPrintf(
-            "nfc_process_quick_timer_evt: unhandled timer event (0x%04x)",
-            p_tle->event);
+        LOG(VERBOSE) << StringPrintf("%s:: unhandled timer event (0x%04x)",
+                                     __func__, p_tle->event);
         break;
     }
   }
@@ -298,10 +296,13 @@ void nfc_process_quick_timer_evt(void) {
 *******************************************************************************/
 void nfc_task_shutdown_nfcc(void) {
   NFC_HDR* p_msg;
+  if (!gki_utils) {
+    gki_utils = new GkiUtils();
+  }
 
   /* Free any messages still in the mbox */
-  while ((p_msg = (NFC_HDR*)GKI_read_mbox(NFC_MBOX_ID)) != nullptr) {
-    GKI_freebuf(p_msg);
+  while ((p_msg = (NFC_HDR*)gki_utils->read_mbox(NFC_MBOX_ID)) != nullptr) {
+    gki_utils->freebuf(p_msg);
   }
 
   nfc_gen_cleanup();
@@ -319,9 +320,9 @@ void nfc_task_shutdown_nfcc(void) {
     /* Perform final clean up */
 
     /* Stop the timers */
-    GKI_stop_timer(NFC_TIMER_ID);
-    GKI_stop_timer(NFC_QUICK_TIMER_ID);
-    GKI_stop_timer(NFA_TIMER_ID);
+    gki_utils->stop_timer(NFC_TIMER_ID);
+    gki_utils->stop_timer(NFC_QUICK_TIMER_ID);
+    gki_utils->stop_timer(NFA_TIMER_ID);
   }
 }
 
@@ -342,7 +343,7 @@ uint32_t nfc_task(__attribute__((unused)) uint32_t arg) {
   /* Initialize the nfc control block */
   memset(&nfc_cb, 0, sizeof(tNFC_CB));
 
-  LOG(VERBOSE) << StringPrintf("NFC_TASK started.");
+  LOG(VERBOSE) << StringPrintf("%s: started", __func__);
 
   /* main loop */
   while (true) {
@@ -352,7 +353,8 @@ uint32_t nfc_task(__attribute__((unused)) uint32_t arg) {
     }
     /* Handle NFC_TASK_EVT_TRANSPORT_READY from NFC HAL */
     if (event & NFC_TASK_EVT_TRANSPORT_READY) {
-      LOG(VERBOSE) << StringPrintf("NFC_TASK got NFC_TASK_EVT_TRANSPORT_READY.");
+      LOG(VERBOSE) << StringPrintf("%s: got NFC_TASK_EVT_TRANSPORT_READY",
+                                   __func__);
 
       /* Reset the NFC controller. */
       nfc_set_state(NFC_STATE_CORE_INIT);
@@ -405,7 +407,8 @@ uint32_t nfc_task(__attribute__((unused)) uint32_t arg) {
 
           default:
             LOG(VERBOSE) << StringPrintf(
-                "nfc_task: unhandle mbox message, event=%04x", p_msg->event);
+                "%s: unhandle mbox message, event=%04x", __func__,
+                p_msg->event);
             break;
         }
 
@@ -436,7 +439,7 @@ uint32_t nfc_task(__attribute__((unused)) uint32_t arg) {
     }
   }
 
-  LOG(VERBOSE) << StringPrintf("nfc_task terminated");
+  LOG(VERBOSE) << StringPrintf("%s: terminated", __func__);
 
   GKI_exit_task(GKI_get_taskid());
   return 0;

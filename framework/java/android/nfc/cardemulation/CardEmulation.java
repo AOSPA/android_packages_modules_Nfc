@@ -27,6 +27,7 @@ import android.annotation.RequiresPermission;
 import android.annotation.SdkConstant;
 import android.annotation.SdkConstant.SdkConstantType;
 import android.annotation.SystemApi;
+import android.annotation.TestApi;
 import android.annotation.UserHandleAware;
 import android.annotation.UserIdInt;
 import android.app.Activity;
@@ -443,7 +444,6 @@ public final class CardEmulation {
      * @param enable Whether the service should default to observe mode or not
      * @return whether the change was successful.
      */
-    @FlaggedApi(Flags.FLAG_NFC_OBSERVE_MODE)
     public boolean setShouldDefaultToObserveModeForService(@NonNull ComponentName service,
             boolean enable) {
         return callServiceReturn(() ->
@@ -466,7 +466,6 @@ public final class CardEmulation {
      * @return true if the filter was registered, false otherwise
      * @throws IllegalArgumentException if the passed in string doesn't parse to at least one byte
      */
-    @FlaggedApi(Flags.FLAG_NFC_READ_POLLING_LOOP)
     public boolean registerPollingLoopFilterForService(@NonNull ComponentName service,
             @NonNull String pollingLoopFilter, boolean autoTransact) {
         final String pollingLoopFilterV = validatePollingLoopFilter(pollingLoopFilter);
@@ -485,7 +484,6 @@ public final class CardEmulation {
      * @return true if the filter was removed, false otherwise
      * @throws IllegalArgumentException if the passed in string doesn't parse to at least one byte
      */
-    @FlaggedApi(Flags.FLAG_NFC_READ_POLLING_LOOP)
     public boolean removePollingLoopFilterForService(@NonNull ComponentName service,
             @NonNull String pollingLoopFilter) {
         final String pollingLoopFilterV = validatePollingLoopFilter(pollingLoopFilter);
@@ -516,7 +514,6 @@ public final class CardEmulation {
      *         numbers and `.`, `?` and `*` operators
      * @throws java.util.regex.PatternSyntaxException if the regex syntax is invalid
      */
-    @FlaggedApi(Flags.FLAG_NFC_READ_POLLING_LOOP)
     public boolean registerPollingLoopPatternFilterForService(@NonNull ComponentName service,
             @NonNull String pollingLoopPatternFilter, boolean autoTransact) {
         final String pollingLoopPatternFilterV =
@@ -542,7 +539,6 @@ public final class CardEmulation {
      *         numbers and `.`, `?` and `*` operators
      * @throws java.util.regex.PatternSyntaxException if the regex syntax is invalid
      */
-    @FlaggedApi(Flags.FLAG_NFC_READ_POLLING_LOOP)
     public boolean removePollingLoopPatternFilterForService(@NonNull ComponentName service,
             @NonNull String pollingLoopPatternFilter) {
         final String pollingLoopPatternFilterV =
@@ -903,7 +899,6 @@ public final class CardEmulation {
      *
      * @hide
      */
-    @FlaggedApi(Flags.FLAG_NFC_READ_POLLING_LOOP)
     public static @NonNull String validatePollingLoopFilter(@NonNull String pollingLoopFilter) {
         // Verify hex characters
         byte[] plfBytes = HexFormat.of().parseHex(pollingLoopFilter);
@@ -920,7 +915,6 @@ public final class CardEmulation {
      *
      * @hide
      */
-    @FlaggedApi(Flags.FLAG_NFC_READ_POLLING_LOOP)
     public static @NonNull String validatePollingLoopPatternFilter(
         @NonNull String pollingLoopPatternFilter) {
         // Verify hex characters
@@ -1357,6 +1351,16 @@ public final class CardEmulation {
         default void onObserveModeStateChanged(boolean isEnabled) {}
 
         /**
+         * This method is called when observe mode has been disabled in the firmware.
+         *
+         * @param exitFrame The polling frame that caused the firmware to exit observe mode. Null
+         *                  when we were unable to parse the exit frame from the NFCC.
+         * @hide
+         */
+        @FlaggedApi(android.nfc.Flags.FLAG_NFC_EVENT_LISTENER)
+        default void onObserveModeDisabledInFirmware(@Nullable PollingFrame exitFrame) {}
+
+        /**
          * This method is called when an AID conflict is detected during an NFC transaction. This
          * can happen when multiple services are registered for the same AID. If your service is
          * registered for this AID you may want to instruct users to bring your app to the
@@ -1434,6 +1438,13 @@ public final class CardEmulation {
                         return;
                     }
                     callListeners(listener -> listener.onObserveModeStateChanged(isEnabled));
+                }
+
+                public void onObserveModeDisabledInFirmware(PollingFrame exitFrame) {
+                    if (!android.nfc.Flags.nfcEventListener()) {
+                        return;
+                    }
+                    callListeners(listener -> listener.onObserveModeDisabledInFirmware(exitFrame));
                 }
 
                 public void onAidConflictOccurred(String aid) {

@@ -28,11 +28,6 @@ python_defaults {
         "cts-v-host",
         "general-tests",
     ],
-    version: {
-        py3: {
-            embedded_launcher: true,
-        },
-    },
 }
 
 python_test_host {
@@ -43,7 +38,6 @@ python_test_host {
     device_common_data: [
         ":NfcEmulatorTestApp",
         ":NfcEmulatorApduApp",
-        "config.yaml",
     ],
     test_options: {
         unit_test: false,

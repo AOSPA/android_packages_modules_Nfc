@@ -77,8 +77,8 @@ void nfc_set_conn_id(tNFC_CONN_CB* p_cb, uint8_t conn_id) {
   p_cb->conn_id = conn_id;
   handle = (uint8_t)(p_cb - nfc_cb.conn_cb + 1);
   nfc_cb.conn_id[conn_id] = handle;
-  LOG(VERBOSE) << StringPrintf("nfc_set_conn_id conn_id:%d, handle:%d", conn_id,
-                             handle);
+  LOG(VERBOSE) << StringPrintf("%s: conn_id=%d, handle=%x", __func__, conn_id,
+                               handle);
 }
 
 /*******************************************************************************
@@ -151,16 +151,21 @@ tNFC_CONN_CB* nfc_find_conn_cb_by_conn_id(uint8_t conn_id) {
 void nfc_free_conn_cb(tNFC_CONN_CB* p_cb) {
   void* p_buf;
 
+  if (!gki_utils) {
+    gki_utils = new GkiUtils();
+  }
   if (p_cb == nullptr) return;
 
-  while ((p_buf = GKI_dequeue(&p_cb->rx_q)) != nullptr) GKI_freebuf(p_buf);
+  while ((p_buf = gki_utils->dequeue(&p_cb->rx_q)) != nullptr)
+    gki_utils->freebuf(p_buf);
 
-  while ((p_buf = GKI_dequeue(&p_cb->tx_q)) != nullptr) GKI_freebuf(p_buf);
+  while ((p_buf = gki_utils->dequeue(&p_cb->tx_q)) != nullptr)
+    gki_utils->freebuf(p_buf);
 
   if (p_cb->conn_id <= NFC_MAX_CONN_ID) {
     nfc_cb.conn_id[p_cb->conn_id] = 0;
   } else {
-    LOG(ERROR) << StringPrintf("invalid conn_id.");
+    LOG(ERROR) << StringPrintf("%s: invalid conn_id", __func__);
   }
   p_cb->p_cback = nullptr;
   p_cb->conn_id = NFC_ILLEGAL_CONN_ID;

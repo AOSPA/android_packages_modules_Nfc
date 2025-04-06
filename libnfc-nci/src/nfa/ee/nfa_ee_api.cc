@@ -32,6 +32,7 @@
 
 using android::base::StringPrintf;
 
+extern GkiUtilsInterface* gki_utils;
 /*****************************************************************************
 **  APIs
 *****************************************************************************/
@@ -56,15 +57,21 @@ tNFA_STATUS NFA_EeDiscover(tNFA_EE_CBACK* p_cback) {
 
   LOG(VERBOSE) << __func__;
 
+  if (gki_utils == nullptr) {
+    gki_utils = new GkiUtils();
+  }
+
   if (nfa_ee_cb.em_state != NFA_EE_EM_STATE_INIT_DONE) {
-    LOG(ERROR) << StringPrintf("NFA_EeDiscover bad em state: %d",
+    LOG(ERROR) << StringPrintf("%s: bad em state=%d", __func__,
                                nfa_ee_cb.em_state);
     status = NFA_STATUS_FAILED;
   } else if ((nfa_ee_cb.p_ee_disc_cback != nullptr) || (p_cback == nullptr)) {
-    LOG(ERROR) << StringPrintf("in progress or NULL callback function");
+    LOG(ERROR) << StringPrintf("%s: in progress or NULL callback function",
+                               __func__);
     status = NFA_STATUS_INVALID_PARAM;
   } else {
-    p_msg = (tNFA_EE_API_DISCOVER*)GKI_getbuf(sizeof(tNFA_EE_API_DISCOVER));
+    p_msg =
+        (tNFA_EE_API_DISCOVER*)gki_utils->getbuf(sizeof(tNFA_EE_API_DISCOVER));
     if (p_msg != nullptr) {
       p_msg->hdr.event = NFA_EE_API_DISCOVER_EVT;
       p_msg->p_cback = p_cback;
@@ -97,17 +104,15 @@ tNFA_STATUS NFA_EeGetInfo(uint8_t* p_num_nfcee, tNFA_EE_INFO* p_info) {
   uint8_t max_ret;
   uint8_t num_ret = 0;
 
-  LOG(VERBOSE) << StringPrintf("NFA_EeGetInfo em_state:%d cur_ee:%d",
-                             nfa_ee_cb.em_state, nfa_ee_cb.cur_ee);
   /* validate parameters */
   if (p_info == nullptr || p_num_nfcee == nullptr) {
-    LOG(ERROR) << StringPrintf("NFA_EeGetInfo bad parameter");
+    LOG(ERROR) << StringPrintf("%s: bad parameter", __func__);
     return (NFA_STATUS_INVALID_PARAM);
   }
   max_ret = *p_num_nfcee;
   *p_num_nfcee = 0;
   if (nfa_ee_cb.em_state == NFA_EE_EM_STATE_INIT) {
-    LOG(ERROR) << StringPrintf("NFA_EeGetInfo bad em state: %d",
+    LOG(ERROR) << StringPrintf("%s: bad em state=%d", __func__,
                                nfa_ee_cb.em_state);
     return (NFA_STATUS_FAILED);
   }
@@ -117,12 +122,14 @@ tNFA_STATUS NFA_EeGetInfo(uint8_t* p_num_nfcee, tNFA_EE_INFO* p_info) {
   memset(p_info, 0, sizeof(tNFA_EE_INFO) * max_ret);
   /* compose output */
   for (xx = 0; (xx < ret) && (num_ret < max_ret); xx++, p_cb++) {
-    LOG(VERBOSE) << StringPrintf("xx:%d max_ret:%d, num_ret:%d ee_status:0x%x",
-                               xx, max_ret, num_ret, p_cb->ee_status);
     if ((p_cb->ee_status & NFA_EE_STATUS_INT_MASK) ||
-        (p_cb->ee_status == NFA_EE_STATUS_REMOVED)) {
+        (p_cb->ee_status == NFA_EE_STATUS_REMOVED) ||
+        (p_cb->ee_status & NFA_EE_STATUS_MEP_MASK)) {
       continue;
     }
+    LOG(DEBUG) << StringPrintf(
+        "%s:  xx=%d max_ret=%d, num_ret=%d nfcee_id=0x%x ee_status=0x%x",
+        __func__, xx, max_ret, num_ret, p_cb->nfcee_id, p_cb->ee_status);
     p_info->ee_handle = NFA_HANDLE_GROUP_EE | (tNFA_HANDLE)p_cb->nfcee_id;
     p_info->ee_status = p_cb->ee_status;
     p_info->num_interface = p_cb->num_interface;
@@ -136,7 +143,72 @@ tNFA_STATUS NFA_EeGetInfo(uint8_t* p_num_nfcee, tNFA_EE_INFO* p_info) {
     p_info++;
     num_ret++;
   }
-  LOG(VERBOSE) << StringPrintf("num_ret:%d", num_ret);
+  *p_num_nfcee = num_ret;
+  return (NFA_STATUS_OK);
+}
+
+/*******************************************************************************
+**
+** Function         NFA_EeGetMepInfo
+**
+** Description      This function retrieves the NFCEE information from NFA.
+**                  The actual number of NFCEE is returned in p_num_nfcee
+**                  and NFCEE information is returned in p_info
+**
+** Returns          NFA_STATUS_OK if information is retrieved successfully
+**                  NFA_STATUS_FAILED If wrong state (retry later)
+**                  NFA_STATUS_INVALID_PARAM If bad parameter
+**
+*******************************************************************************/
+tNFA_STATUS NFA_EeGetMepInfo(uint8_t* p_num_nfcee, tNFA_EE_INFO* p_info) {
+  int xx, ret = nfa_ee_cb.cur_ee;
+  tNFA_EE_ECB* p_cb = nfa_ee_cb.ecb;
+  uint8_t max_ret;
+  uint8_t num_ret = 0;
+
+  /* validate parameters */
+  if (p_info == nullptr || p_num_nfcee == nullptr) {
+    LOG(ERROR) << StringPrintf("%s:  bad parameter", __func__);
+    return (NFA_STATUS_INVALID_PARAM);
+  }
+  max_ret = *p_num_nfcee;
+  *p_num_nfcee = 0;
+  if (nfa_ee_cb.em_state == NFA_EE_EM_STATE_INIT) {
+    LOG(ERROR) << StringPrintf("%s:  bad em state=%d", __func__,
+                               nfa_ee_cb.em_state);
+    return (NFA_STATUS_FAILED);
+  }
+
+  // Reset the target array as we may have less elements than in previous call
+  // if some activations failed.
+  memset(p_info, 0, sizeof(tNFA_EE_INFO) * max_ret);
+
+  /* compose output */
+  for (xx = 0; (xx < ret) && (num_ret < max_ret); xx++, p_cb++) {
+    if (!(p_cb->ee_status & NFA_EE_STATUS_MEP_MASK)) {
+      continue;
+    }
+    LOG(DEBUG) << StringPrintf(
+        "%s:  xx=%d max_ret=%d, num_ret=%d nfcee_id=0x%x ee_status=0x%x",
+        __func__, xx, max_ret, num_ret, p_cb->nfcee_id, p_cb->ee_status);
+    p_info->ee_handle = NFA_HANDLE_GROUP_EE | (tNFA_HANDLE)p_cb->nfcee_id;
+    p_info->ee_status = p_cb->ee_status & ~NFA_EE_STATUS_MEP_MASK;
+
+    if ((p_cb->ee_status & NFA_EE_STATUS_INT_MASK) ||
+        (p_cb->ee_status == NFA_EE_STATUS_REMOVED)) {
+      p_info->num_interface = p_cb->num_interface;
+      p_info->num_tlvs = p_cb->num_tlvs;
+      p_info->la_protocol = p_cb->la_protocol;
+      p_info->lb_protocol = p_cb->lb_protocol;
+      p_info->lf_protocol = p_cb->lf_protocol;
+      memcpy(p_info->ee_interface, p_cb->ee_interface, p_cb->num_interface);
+      memcpy(p_info->ee_tlv, p_cb->ee_tlv,
+             p_cb->num_tlvs * sizeof(tNFA_EE_TLV));
+      p_info->ee_power_supply_status = p_cb->ee_power_supply_status;
+    }
+    p_info++;
+    num_ret++;
+  }
   *p_num_nfcee = num_ret;
   return (NFA_STATUS_OK);
 }
@@ -159,11 +231,16 @@ tNFA_STATUS NFA_EeRegister(tNFA_EE_CBACK* p_cback) {
 
   LOG(VERBOSE) << __func__;
 
+  if (gki_utils == nullptr) {
+    gki_utils = new GkiUtils();
+  }
+
   if (p_cback == nullptr) {
-    LOG(ERROR) << StringPrintf("with NULL callback function");
+    LOG(ERROR) << StringPrintf("%s: with NULL callback function", __func__);
     status = NFA_STATUS_INVALID_PARAM;
   } else {
-    p_msg = (tNFA_EE_API_REGISTER*)GKI_getbuf(sizeof(tNFA_EE_API_REGISTER));
+    p_msg =
+        (tNFA_EE_API_REGISTER*)gki_utils->getbuf(sizeof(tNFA_EE_API_REGISTER));
     if (p_msg != nullptr) {
       p_msg->hdr.event = NFA_EE_API_REGISTER_EVT;
       p_msg->p_cback = p_cback;
@@ -194,6 +271,10 @@ tNFA_STATUS NFA_EeDeregister(tNFA_EE_CBACK* p_cback) {
   int index = NFA_EE_MAX_CBACKS;
   int xx;
 
+  if (gki_utils == nullptr) {
+    gki_utils = new GkiUtils();
+  }
+
   for (xx = 0; xx < NFA_EE_MAX_CBACKS; xx++) {
     if (nfa_ee_cb.p_ee_cback[xx] == p_cback) {
       index = xx;
@@ -202,9 +283,10 @@ tNFA_STATUS NFA_EeDeregister(tNFA_EE_CBACK* p_cback) {
     }
   }
 
-  LOG(VERBOSE) << StringPrintf("%d, status:%d", index, status);
+  LOG(VERBOSE) << StringPrintf("%s: index=%d, status=%d", __func__, index,
+                               status);
   if ((status != NFA_STATUS_INVALID_PARAM) &&
-      (p_msg = (tNFA_EE_API_DEREGISTER*)GKI_getbuf(
+      (p_msg = (tNFA_EE_API_DEREGISTER*)gki_utils->getbuf(
            sizeof(tNFA_EE_API_DEREGISTER))) != nullptr) {
     p_msg->hdr.event = NFA_EE_API_DEREGISTER_EVT;
     p_msg->index = index;
@@ -239,6 +321,10 @@ tNFA_STATUS NFA_EeModeSet(tNFA_HANDLE ee_handle, tNFA_EE_MD mode) {
   uint32_t xx;
   uint8_t nfcee_id = (ee_handle & 0xFF);
 
+  if (gki_utils == nullptr) {
+    gki_utils = new GkiUtils();
+  }
+
   p_cb = nfa_ee_cb.ecb;
   for (xx = 0; xx < nfa_ee_cb.cur_ee; xx++, p_cb++) {
     if (nfcee_id == p_cb->nfcee_id) {
@@ -246,13 +332,15 @@ tNFA_STATUS NFA_EeModeSet(tNFA_HANDLE ee_handle, tNFA_EE_MD mode) {
       break;
     }
   }
-  LOG(VERBOSE) << StringPrintf("handle:<0x%x>, mode:0x%02X", ee_handle, mode);
+  LOG(VERBOSE) << StringPrintf("%s: handle:<0x%x>, mode=0x%02X", __func__,
+                               ee_handle, mode);
 
   if (p_found == nullptr) {
-    LOG(ERROR) << StringPrintf("invalid NFCEE:0x%04x", ee_handle);
+    LOG(ERROR) << StringPrintf("%s: invalid NFCEE=0x%04x", __func__, ee_handle);
     status = NFA_STATUS_INVALID_PARAM;
   } else {
-    p_msg = (tNFA_EE_API_MODE_SET*)GKI_getbuf(sizeof(tNFA_EE_API_MODE_SET));
+    p_msg =
+        (tNFA_EE_API_MODE_SET*)gki_utils->getbuf(sizeof(tNFA_EE_API_MODE_SET));
     if (p_msg != nullptr) {
       p_msg->hdr.event = NFA_EE_API_MODE_SET_EVT;
       p_msg->nfcee_id = nfcee_id;
@@ -302,19 +390,23 @@ tNFA_STATUS NFA_EeSetDefaultTechRouting(
   tNFA_EE_ECB* p_cb;
 
   LOG(VERBOSE) << StringPrintf(
-      ""
+      "%s: "
       "handle:<0x%x>technology_mask:<0x%x>/<0x%x>/<0x%x><0x%x><0x%x><0x%x>",
-      ee_handle, technologies_switch_on, technologies_switch_off,
+      __func__, ee_handle, technologies_switch_on, technologies_switch_off,
       technologies_battery_off, technologies_screen_lock,
       technologies_screen_off, technologies_screen_off_lock);
   p_cb = nfa_ee_find_ecb(nfcee_id);
 
+  if (gki_utils == nullptr) {
+    gki_utils = new GkiUtils();
+  }
+
   if (p_cb == nullptr) {
-    LOG(ERROR) << StringPrintf("Bad ee_handle");
+    LOG(ERROR) << StringPrintf("%s: Bad ee_handle", __func__);
     status = NFA_STATUS_INVALID_PARAM;
   } else {
-    p_msg =
-        (tNFA_EE_API_SET_TECH_CFG*)GKI_getbuf(sizeof(tNFA_EE_API_SET_TECH_CFG));
+    p_msg = (tNFA_EE_API_SET_TECH_CFG*)gki_utils->getbuf(
+        sizeof(tNFA_EE_API_SET_TECH_CFG));
     if (p_msg != nullptr) {
       p_msg->hdr.event = NFA_EE_API_SET_TECH_CFG_EVT;
       p_msg->nfcee_id = nfcee_id;
@@ -363,10 +455,14 @@ tNFA_STATUS NFA_EeClearDefaultTechRouting(
   uint8_t nfcee_id = (uint8_t)(ee_handle & 0xFF);
   tNFA_EE_ECB* p_cb;
 
-  LOG(VERBOSE) << StringPrintf("handle:<0x%x>clear technology_mask:<0x%x>",
-                             ee_handle, clear_technology);
+  LOG(VERBOSE) << StringPrintf("%s: handle:<0x%x>clear technology_mask:<0x%x>",
+                               __func__, ee_handle, clear_technology);
+  if (gki_utils == nullptr) {
+    gki_utils = new GkiUtils();
+  }
+
   if (!clear_technology) {
-    LOG(VERBOSE) << StringPrintf("nothing to clear");
+    LOG(VERBOSE) << StringPrintf("%s: nothing to clear", __func__);
     status = NFA_STATUS_OK;
     return status;
   }
@@ -374,10 +470,10 @@ tNFA_STATUS NFA_EeClearDefaultTechRouting(
   p_cb = nfa_ee_find_ecb(nfcee_id);
 
   if (p_cb == nullptr) {
-    LOG(ERROR) << StringPrintf("Bad ee_handle");
+    LOG(ERROR) << StringPrintf("%s: Bad ee_handle", __func__);
     status = NFA_STATUS_INVALID_PARAM;
   } else {
-    p_msg = (tNFA_EE_API_CLEAR_TECH_CFG*)GKI_getbuf(
+    p_msg = (tNFA_EE_API_CLEAR_TECH_CFG*)gki_utils->getbuf(
         sizeof(tNFA_EE_API_CLEAR_TECH_CFG));
     if (p_msg != nullptr) {
       p_msg->hdr.event = NFA_EE_API_CLEAR_TECH_CFG_EVT;
@@ -433,17 +529,21 @@ tNFA_STATUS NFA_EeSetDefaultProtoRouting(
   tNFA_EE_ECB* p_cb;
 
   LOG(VERBOSE) << StringPrintf(
-      "handle:<0x%x>protocol_mask:<0x%x>/<0x%x>/<0x%x><0x%x><0x%x><0x%x>",
-      ee_handle, protocols_switch_on, protocols_switch_off,
+      "%s: handle:<0x%x>protocol_mask:<0x%x>/<0x%x>/<0x%x><0x%x><0x%x><0x%x>",
+      __func__, ee_handle, protocols_switch_on, protocols_switch_off,
       protocols_battery_off, protocols_screen_lock, protocols_screen_off,
       protocols_screen_off_lock);
   p_cb = nfa_ee_find_ecb(nfcee_id);
 
+  if (gki_utils == nullptr) {
+    gki_utils = new GkiUtils();
+  }
+
   if (p_cb == nullptr) {
-    LOG(ERROR) << StringPrintf("Bad ee_handle");
+    LOG(ERROR) << StringPrintf("%s: Bad ee_handle", __func__);
     status = NFA_STATUS_INVALID_PARAM;
   } else {
-    p_msg = (tNFA_EE_API_SET_PROTO_CFG*)GKI_getbuf(
+    p_msg = (tNFA_EE_API_SET_PROTO_CFG*)gki_utils->getbuf(
         sizeof(tNFA_EE_API_SET_PROTO_CFG));
     if (p_msg != nullptr) {
       p_msg->hdr.event = NFA_EE_API_SET_PROTO_CFG_EVT;
@@ -493,21 +593,25 @@ tNFA_STATUS NFA_EeClearDefaultProtoRouting(tNFA_HANDLE ee_handle,
   uint8_t nfcee_id = (uint8_t)(ee_handle & 0xFF);
   tNFA_EE_ECB* p_cb;
 
-  LOG(VERBOSE) << StringPrintf("handle:<0x%x>clear protocol_mask:<0x%x>",
-                             ee_handle, clear_protocol);
+  LOG(VERBOSE) << StringPrintf("%s: handle:<0x%x>clear protocol_mask:<0x%x>",
+                               __func__, ee_handle, clear_protocol);
   if (!clear_protocol) {
-    LOG(VERBOSE) << StringPrintf("nothing to clear");
+    LOG(VERBOSE) << StringPrintf("%s: nothing to clear", __func__);
     status = NFA_STATUS_OK;
     return status;
   }
 
   p_cb = nfa_ee_find_ecb(nfcee_id);
 
+  if (gki_utils == nullptr) {
+    gki_utils = new GkiUtils();
+  }
+
   if (p_cb == nullptr) {
-    LOG(ERROR) << StringPrintf("Bad ee_handle");
+    LOG(ERROR) << StringPrintf("%s: Bad ee_handle", __func__);
     status = NFA_STATUS_INVALID_PARAM;
   } else {
-    p_msg = (tNFA_EE_API_SET_PROTO_CFG*)GKI_getbuf(
+    p_msg = (tNFA_EE_API_SET_PROTO_CFG*)gki_utils->getbuf(
         sizeof(tNFA_EE_API_SET_PROTO_CFG));
     if (p_msg != nullptr) {
       p_msg->hdr.event = NFA_EE_API_CLEAR_PROTO_CFG_EVT;
@@ -558,8 +662,17 @@ tNFA_STATUS NFA_EeAddAidRouting(tNFA_HANDLE ee_handle, uint8_t aid_len,
   uint8_t nfcee_id = (uint8_t)(ee_handle & 0xFF);
   tNFA_EE_ECB* p_cb;
 
-  LOG(VERBOSE) << StringPrintf("handle:<0x%x>", ee_handle);
+  if (aid_len == 0) {
+    LOG(VERBOSE) << StringPrintf("%s: handle=<0x%x>, default AID route",
+                                 __func__, ee_handle);
+  } else {
+    LOG(VERBOSE) << StringPrintf("%s: handle=<0x%x>", __func__, ee_handle);
+  }
   p_cb = nfa_ee_find_ecb(nfcee_id);
+
+  if (gki_utils == nullptr) {
+    gki_utils = new GkiUtils();
+  }
 
   /* validate parameters - make sure the AID is in valid length range */
   if ((p_cb == nullptr) ||
@@ -568,13 +681,15 @@ tNFA_STATUS NFA_EeAddAidRouting(tNFA_HANDLE ee_handle, uint8_t aid_len,
       ((NFA_GetNCIVersion() < NCI_VERSION_2_0) &&
        ((aid_len == 0) || (p_aid == nullptr) || (aid_len < NFA_MIN_AID_LEN))) ||
       (aid_len > NFA_MAX_AID_LEN)) {
-    LOG(ERROR) << StringPrintf("Bad ee_handle or AID (len=%d)", aid_len);
+    LOG(ERROR) << StringPrintf("%s: Bad ee_handle or AID (len=%d)", __func__,
+                               aid_len);
     status = NFA_STATUS_INVALID_PARAM;
   } else {
-    p_msg = (tNFA_EE_API_ADD_AID*)GKI_getbuf(size);
+    p_msg = (tNFA_EE_API_ADD_AID*)gki_utils->getbuf(size);
     if (p_msg != nullptr) {
       if (p_aid != nullptr)
-        LOG(VERBOSE) << StringPrintf("aid:<%02x%02x>", p_aid[0], p_aid[1]);
+        LOG(VERBOSE) << StringPrintf("%s: aid:<%02x%02x>", __func__, p_aid[0],
+                                     p_aid[1]);
       p_msg->hdr.event = NFA_EE_API_ADD_AID_EVT;
       p_msg->nfcee_id = nfcee_id;
       p_msg->p_cb = p_cb;
@@ -620,15 +735,20 @@ tNFA_STATUS NFA_EeRemoveAidRouting(uint8_t aid_len, uint8_t* p_aid) {
   uint16_t size = sizeof(tNFA_EE_API_REMOVE_AID) + aid_len;
 
   LOG(VERBOSE) << __func__;
+
+  if (gki_utils == nullptr) {
+    gki_utils = new GkiUtils();
+  }
+
   if (((NFA_GetNCIVersion() >= NCI_VERSION_2_0) && (aid_len != 0) &&
        (p_aid == nullptr)) ||
       ((NFA_GetNCIVersion() < NCI_VERSION_2_0) &&
        ((aid_len == 0) || (p_aid == nullptr) || (aid_len < NFA_MIN_AID_LEN))) ||
       (aid_len > NFA_MAX_AID_LEN)) {
-    LOG(ERROR) << StringPrintf("Bad AID");
+    LOG(ERROR) << StringPrintf("%s: Bad AID", __func__);
     status = NFA_STATUS_INVALID_PARAM;
   } else {
-    p_msg = (tNFA_EE_API_REMOVE_AID*)GKI_getbuf(size);
+    p_msg = (tNFA_EE_API_REMOVE_AID*)gki_utils->getbuf(size);
     if (p_msg != nullptr) {
       p_msg->hdr.event = NFA_EE_API_REMOVE_AID_EVT;
       p_msg->aid_len = aid_len;
@@ -669,20 +789,25 @@ tNFA_STATUS NFA_EeAddSystemCodeRouting(uint16_t systemcode,
                                        tNFA_EE_PWR_STATE power_state) {
   tNFA_STATUS status = NFA_STATUS_FAILED;
   uint8_t nfcee_id = (uint8_t)(ee_handle & 0xFF);
-  LOG(VERBOSE) << StringPrintf("NFA_EeAddSystemCodeRouting(): handle:<0x%x>",
-                             ee_handle);
+  LOG(VERBOSE) << StringPrintf("%s: handle:<0x%x>", __func__, ee_handle);
   tNFA_EE_ECB* p_cb = nfa_ee_find_ecb(nfcee_id);
 
+  if (gki_utils == nullptr) {
+    gki_utils = new GkiUtils();
+  }
+
   if (p_cb == nullptr || systemcode == 0) {
-    LOG(ERROR) << StringPrintf("Bad ee_handle or System Code");
+    LOG(ERROR) << StringPrintf("%s: Bad ee_handle or System Code", __func__);
     status = NFA_STATUS_INVALID_PARAM;
   } else if ((NFA_GetNCIVersion() < NCI_VERSION_2_0) &&
              (nfc_cb.isScbrSupported == false)) {
-    LOG(ERROR) << StringPrintf("Invalid NCI Version/SCBR not supported");
+    LOG(ERROR) << StringPrintf("%s: Invalid NCI Version/SCBR not supported",
+                               __func__);
     status = NFA_STATUS_NOT_SUPPORTED;
   } else {
     tNFA_EE_API_ADD_SYSCODE* p_msg =
-        (tNFA_EE_API_ADD_SYSCODE*)GKI_getbuf(sizeof(tNFA_EE_API_ADD_SYSCODE));
+        (tNFA_EE_API_ADD_SYSCODE*)gki_utils->getbuf(
+            sizeof(tNFA_EE_API_ADD_SYSCODE));
     if (p_msg != nullptr) {
       p_msg->hdr.event = NFA_EE_API_ADD_SYSCODE_EVT;
       p_msg->power_state = power_state;
@@ -721,16 +846,21 @@ tNFA_STATUS NFA_EeAddSystemCodeRouting(uint16_t systemcode,
 tNFA_STATUS NFA_EeRemoveSystemCodeRouting(uint16_t systemcode) {
   tNFA_STATUS status = NFA_STATUS_FAILED;
 
+  if (gki_utils == nullptr) {
+    gki_utils = new GkiUtils();
+  }
+
   if (systemcode == 0) {
-    LOG(ERROR) << "Bad ee_handle or System Code";
+    LOG(ERROR) << __func__ << ": Bad ee_handle or System Code";
     status = NFA_STATUS_INVALID_PARAM;
   } else if ((NFA_GetNCIVersion() < NCI_VERSION_2_0) &&
              (nfc_cb.isScbrSupported == false)) {
-    LOG(ERROR) << "Invalid NCI Version/SCBR Not supported";
+    LOG(ERROR) << __func__ << ": Invalid NCI Version/SCBR Not supported";
     status = NFA_STATUS_NOT_SUPPORTED;
   } else {
-    tNFA_EE_API_REMOVE_SYSCODE* p_msg = (tNFA_EE_API_REMOVE_SYSCODE*)GKI_getbuf(
-        sizeof(tNFA_EE_API_REMOVE_SYSCODE));
+    tNFA_EE_API_REMOVE_SYSCODE* p_msg =
+        (tNFA_EE_API_REMOVE_SYSCODE*)gki_utils->getbuf(
+            sizeof(tNFA_EE_API_REMOVE_SYSCODE));
     if (p_msg != nullptr) {
       p_msg->hdr.event = NFA_EE_API_REMOVE_SYSCODE_EVT;
       p_msg->syscode = (systemcode & 0x00FF) << 8 | (systemcode & 0xFF00) >> 8;
@@ -770,7 +900,13 @@ tNFA_STATUS NFA_EeGetLmrtRemainingSize(void) {
   tNFA_STATUS status = NFA_STATUS_FAILED;
 
   LOG(VERBOSE) << __func__;
-  p_msg = (tNFA_EE_API_LMRT_SIZE*)GKI_getbuf(sizeof(tNFA_EE_API_LMRT_SIZE));
+
+  if (gki_utils == nullptr) {
+    gki_utils = new GkiUtils();
+  }
+
+  p_msg =
+      (tNFA_EE_API_LMRT_SIZE*)gki_utils->getbuf(sizeof(tNFA_EE_API_LMRT_SIZE));
   if (p_msg != nullptr) {
     p_msg->event = NFA_EE_API_LMRT_SIZE_EVT;
     nfa_sys_sendmsg(p_msg);
@@ -801,11 +937,16 @@ tNFA_STATUS NFA_EeUpdateNow(void) {
   tNFA_STATUS status = NFA_STATUS_FAILED;
 
   LOG(VERBOSE) << __func__;
+
+  if (gki_utils == nullptr) {
+    gki_utils = new GkiUtils();
+  }
+
   if (nfa_ee_cb.ee_wait_evt & NFA_EE_WAIT_UPDATE_ALL) {
-    LOG(ERROR) << StringPrintf("update in progress");
+    LOG(ERROR) << StringPrintf("%s: update in progress", __func__);
     status = NFA_STATUS_SEMANTIC_ERROR;
   } else {
-    p_msg = (NFC_HDR*)GKI_getbuf(NFC_HDR_SIZE);
+    p_msg = (NFC_HDR*)gki_utils->getbuf(NFC_HDR_SIZE);
     if (p_msg != nullptr) {
       p_msg->event = NFA_EE_API_UPDATE_NOW_EVT;
 
@@ -839,15 +980,21 @@ tNFA_STATUS NFA_EeConnect(tNFA_HANDLE ee_handle, uint8_t ee_interface,
   uint8_t nfcee_id = (uint8_t)(ee_handle & 0xFF);
   tNFA_EE_ECB* p_cb;
 
-  LOG(VERBOSE) << StringPrintf("handle:<0x%x> ee_interface:0x%x", ee_handle,
-                             ee_interface);
+  LOG(VERBOSE) << StringPrintf("%s: handle:<0x%x> ee_interface=0x%x", __func__,
+                               ee_handle, ee_interface);
   p_cb = nfa_ee_find_ecb(nfcee_id);
 
+  if (gki_utils == nullptr) {
+    gki_utils = new GkiUtils();
+  }
+
   if ((p_cb == nullptr) || (p_cback == nullptr)) {
-    LOG(ERROR) << StringPrintf("Bad ee_handle or NULL callback function");
+    LOG(ERROR) << StringPrintf("%s: Bad ee_handle or NULL callback function",
+                               __func__);
     status = NFA_STATUS_INVALID_PARAM;
   } else {
-    p_msg = (tNFA_EE_API_CONNECT*)GKI_getbuf(sizeof(tNFA_EE_API_CONNECT));
+    p_msg =
+        (tNFA_EE_API_CONNECT*)gki_utils->getbuf(sizeof(tNFA_EE_API_CONNECT));
     if (p_msg != nullptr) {
       p_msg->hdr.event = NFA_EE_API_CONNECT_EVT;
       p_msg->nfcee_id = nfcee_id;
@@ -885,16 +1032,20 @@ tNFA_STATUS NFA_EeSendData(tNFA_HANDLE ee_handle, uint16_t data_len,
   uint8_t nfcee_id = (uint8_t)(ee_handle & 0xFF);
   tNFA_EE_ECB* p_cb;
 
-  LOG(VERBOSE) << StringPrintf("handle:<0x%x>", ee_handle);
+  LOG(VERBOSE) << StringPrintf("%s: handle:<0x%x>", __func__, ee_handle);
 
   p_cb = nfa_ee_find_ecb(nfcee_id);
 
+  if (gki_utils == nullptr) {
+    gki_utils = new GkiUtils();
+  }
+
   if ((p_cb == nullptr) || (p_cb->conn_st != NFA_EE_CONN_ST_CONN) ||
       (p_data == nullptr)) {
-    LOG(ERROR) << StringPrintf("Bad ee_handle or NULL data");
+    LOG(ERROR) << StringPrintf("%s: Bad ee_handle or NULL data", __func__);
     status = NFA_STATUS_INVALID_PARAM;
   } else {
-    p_msg = (tNFA_EE_API_SEND_DATA*)GKI_getbuf(
+    p_msg = (tNFA_EE_API_SEND_DATA*)gki_utils->getbuf(
         (uint16_t)(sizeof(tNFA_EE_API_SEND_DATA) + data_len));
     if (p_msg != nullptr) {
       p_msg->hdr.event = NFA_EE_API_SEND_DATA_EVT;
@@ -932,14 +1083,19 @@ tNFA_STATUS NFA_EeDisconnect(tNFA_HANDLE ee_handle) {
   uint8_t nfcee_id = (uint8_t)(ee_handle & 0xFF);
   tNFA_EE_ECB* p_cb;
 
-  LOG(VERBOSE) << StringPrintf("handle:<0x%x>", ee_handle);
+  LOG(VERBOSE) << StringPrintf("%s: handle:<0x%x>", __func__, ee_handle);
   p_cb = nfa_ee_find_ecb(nfcee_id);
 
+  if (gki_utils == nullptr) {
+    gki_utils = new GkiUtils();
+  }
+
   if ((p_cb == nullptr) || (p_cb->conn_st != NFA_EE_CONN_ST_CONN)) {
-    LOG(ERROR) << StringPrintf("Bad ee_handle");
+    LOG(ERROR) << StringPrintf("%s: Bad ee_handle", __func__);
     status = NFA_STATUS_INVALID_PARAM;
   } else {
-    p_msg = (tNFA_EE_API_DISCONNECT*)GKI_getbuf(sizeof(tNFA_EE_API_DISCONNECT));
+    p_msg = (tNFA_EE_API_DISCONNECT*)gki_utils->getbuf(
+        sizeof(tNFA_EE_API_DISCONNECT));
     if (p_msg != nullptr) {
       p_msg->hdr.event = NFA_EE_API_DISCONNECT_EVT;
       p_msg->nfcee_id = nfcee_id;
@@ -973,14 +1129,19 @@ tNFA_STATUS NFA_EePowerAndLinkCtrl(tNFA_HANDLE ee_handle, uint8_t config) {
   uint8_t nfcee_id = (uint8_t)(ee_handle & 0xFF);
   tNFA_EE_ECB* p_cb;
 
-  LOG(VERBOSE) << StringPrintf("handle:<0x%x>, config:<0x%x>", ee_handle, config);
+  LOG(VERBOSE) << StringPrintf("%s: handle:<0x%x>, config:<0x%x>", __func__,
+                               ee_handle, config);
   p_cb = nfa_ee_find_ecb(nfcee_id);
 
+  if (gki_utils == nullptr) {
+    gki_utils = new GkiUtils();
+  }
+
   if ((p_cb == nullptr) || (p_cb->ee_status != NFA_EE_STATUS_ACTIVE)) {
-    LOG(ERROR) << StringPrintf("Bad ee_handle");
+    LOG(ERROR) << StringPrintf("%s: Bad ee_handle", __func__);
     status = NFA_STATUS_INVALID_PARAM;
   } else {
-    p_msg = (tNFA_EE_API_PWR_AND_LINK_CTRL*)GKI_getbuf(
+    p_msg = (tNFA_EE_API_PWR_AND_LINK_CTRL*)gki_utils->getbuf(
         sizeof(tNFA_EE_API_PWR_AND_LINK_CTRL));
     if (p_msg != nullptr) {
       p_msg->hdr.event = NFA_EE_API_PWR_AND_LINK_CTRL_EVT;
@@ -1010,11 +1171,14 @@ tNFA_STATUS NFA_EeClearRoutingTable(bool clear_tech, bool clear_proto,
   tNFA_EE_API_CLEAR_ROUTING_TABLE* p_msg;
   tNFA_STATUS status = NFA_STATUS_FAILED;
 
-  LOG(DEBUG) << StringPrintf(
-      "%s; clear_tech: %d, clear_proto: %d, clear_sc: %d", __func__, clear_tech,
-      clear_proto, clear_sc);
+  LOG(DEBUG) << StringPrintf("%s:  clear_tech=%d, clear_proto=%d, clear_sc=%d",
+                             __func__, clear_tech, clear_proto, clear_sc);
 
-  if ((p_msg = (tNFA_EE_API_CLEAR_ROUTING_TABLE*)GKI_getbuf(
+  if (gki_utils == nullptr) {
+    gki_utils = new GkiUtils();
+  }
+
+  if ((p_msg = (tNFA_EE_API_CLEAR_ROUTING_TABLE*)gki_utils->getbuf(
            sizeof(tNFA_EE_API_CLEAR_ROUTING_TABLE))) != nullptr) {
     p_msg->hdr.event = NFA_EE_API_CLEAR_ROUTING_TABLE_EVT;
     p_msg->clear_tech = clear_tech;

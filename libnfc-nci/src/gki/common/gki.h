@@ -464,6 +464,13 @@ class GkiUtilsInterface {
   virtual uint16_t update_timer_list(TIMER_LIST_Q* p_timer_listq,
                                      int32_t num_units_since_last_update) = 0;
   virtual TIMER_LIST_ENT* timer_list_first(TIMER_LIST_Q* p_timer_listq) = 0;
+  virtual void freebuf(void* p_buf) = 0;
+  virtual void enqueue(BUFFER_Q* p_q, void* p_buf) = 0;
+  virtual void* dequeue(BUFFER_Q* p_q) = 0;
+  virtual void* getpoolbuf(uint8_t pool_id) = 0;
+  virtual void* read_mbox(uint8_t) = 0;
+  virtual void* remove_from_queue(BUFFER_Q* p_q, void* p_buf) = 0;
+  virtual void* getlast(BUFFER_Q* p_q) = 0;
 };
 
 class GkiUtils : public GkiUtilsInterface {
@@ -503,6 +510,20 @@ class GkiUtils : public GkiUtilsInterface {
   TIMER_LIST_ENT* timer_list_first(TIMER_LIST_Q* p_timer_listq) override {
     return GKI_timer_list_first(p_timer_listq);
   };
+
+  void freebuf(void* p_buf) override { GKI_freebuf(p_buf); };
+  void enqueue(BUFFER_Q* p_q, void* p_buf) override {
+    GKI_enqueue(p_q, p_buf);
+  };
+  void* dequeue(BUFFER_Q* p_q) override { return GKI_dequeue(p_q); };
+  void* getpoolbuf(uint8_t pool_id) override {
+    return GKI_getpoolbuf(pool_id);
+  };
+  void* read_mbox(uint8_t id) override { return GKI_read_mbox(id); };
+  void* remove_from_queue(BUFFER_Q* p_q, void* p_buf) override {
+    return GKI_remove_from_queue(p_q, p_buf);
+  };
+  void* getlast(BUFFER_Q* p_q) override { return GKI_getlast(p_q); }
 };
 
 extern GkiUtilsInterface* gki_utils;

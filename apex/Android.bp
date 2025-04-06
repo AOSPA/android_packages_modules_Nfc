@@ -45,7 +45,6 @@ custom_apex {
     manifest: "manifest.json",
     apps: ["NfcNciApex"],
     defaults: ["b-launched-apex-module"],
-    min_sdk_version: "36",
     multilib: {
         first: {
             // Extractor process runs only with the primary ABI.
@@ -59,8 +58,14 @@ custom_apex {
             bootclasspath_fragments: ["com.android.nfcservices-bootclasspath-fragment"],
         },
     },
-
+    // For non-mainline builds
     required: [
+        // Provide a default libnfc-nci.conf in /system/etc for devices that
+        // does not ship one in /product
+        "libnfc-nci.conf-default",
+    ],
+    // For mainline builds
+    prebuilts: [
         // Provide a default libnfc-nci.conf in /system/etc for devices that
         // does not ship one in /product
         "libnfc-nci.conf-default",
